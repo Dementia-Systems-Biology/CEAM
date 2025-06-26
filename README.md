@@ -16,16 +16,18 @@ Steps:
 3. Select the specificity level of CpG set you want to use (further explained below)
 4. Extract the relevant resulting figures or table
 
-# Workflow of the tool
+# Workflow of the Tool
 The methylation cell type enrichment tool is based on an over-representation analysis framework. Therefore, cell type-specific CpG sets were constructed focusing on intermediately methylated CpGs within each cell type. Moreover, multiple sets per cell type were constructed as different specificity levels:
 
 High-specificity: intermediate methylation value in only one cell type
+
 Medium-specificity: intermediate methylation value in multiple cell types
+
 Low-specificity: methylation value significantly different from all other cell types
 
 These CpG sets were constructed with increasing coverage but decreasing cell type-specificity. The tool performs a hypergeometric test comparing the user's input CpGs to the user-specified CpG set of the desired specificity level and returns the resulting odds ratio, P-value and q-value (adjusted p-value for multiple testing).
 
-# Interpretation of the results
+# Interpretation of the Results
 Since the CpG sets for each cell type are constructed with a focus on intermediately methylated cytosines, the interpretation remains straightforward. Enrichment in a cell type indicates that from the differentially methylated CpGs more than by chance are overlapping with the intermediately methylated CpGs within a cell type. Since intermediately methylated CpGs have been shown to have a higher cell-to-cell and inter-individual variability, it is likely that the observed signal in your bulk data is driven by changes in these intermediately methylated CpGs within the enriched cell type(s).
 To summarize: enrichment of a cell type indicates that observed bulk changes are likely occurring within that cell type.
 
