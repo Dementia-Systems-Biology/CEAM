@@ -1,10 +1,10 @@
-# Methylation-Cell-Type-Enrichment
+# Methylation-Cell-Type-Enrichment-Analysis (mCEA)
 The developed method for cell type enrichment using methylation data is an over-representation analysis approach. This repository contains the scripts used for constructing the cell type-specific CpG sets, testing the method with simulated data and applying it to various EWAS results. The data used for establishing this method are not publicly avaialable, however the resulting CpG sets and enrichment results are available within this repository or in the supplementary materials found here (bioXriv link). The R scripts used for this method can be found in the Scripts folder.
 
-The current version of the tool was constructed on the on the four main brain cell types: neurons, microglia, oligodendrocytes, and astrocytes, using nuclei-sorted samples of neurologically elderly brains. This makes the current version of the tool highly specific for use cases in elderly brains such as neurodegenerative disorders. However, phenotypes far outside the scope of elderly brains and cancer may be not applicable to the current function of the tool. Moreover, the brain samples used in the construction of this method were obtained from the prefrontal cortex and cingulate gyrus. Therefore, applying the tool to results of other brain regions may yield unexpected or spurious results. Although our application to EWAS results have shown enrichment results to be plausible within the light of current disease knowledge, despite these EWAS results being obtained from different brain regions.
+The current version of mCEA was constructed on the on the four main brain cell types: neurons, microglia, oligodendrocytes, and astrocytes, using nuclei-sorted samples of neurologically elderly brains. This makes the current version of the mCEA highly specific for use cases in elderly brains such as neurodegenerative disorders. However, phenotypes far outside the scope of elderly brains and cancer may be not applicable to the current function of mCEA. Moreover, the brain samples used in the construction of this method were obtained from the prefrontal cortex and cingulate gyrus. Therefore, applying the tool to results of other brain regions may yield unexpected or spurious results. Although our application to EWAS results have shown enrichment results to be plausible within the light of current disease knowledge, despite these EWAS results being obtained from different brain regions.
 
 # Citation
-If you use the enrichment analysis tool or the cell type-specific CpG sets please reference:
+If you use the mCEA tool or the cell type-specific CpG sets please reference:
 (DOI coming soon)
 # Quick Start
 For a fast and easy cell type enrichment analysis we provide an app hosted here: (shinyapps.io link here)
@@ -17,7 +17,7 @@ Steps:
 4. Extract the relevant resulting figures or table
 
 # Workflow of the Tool
-The methylation cell type enrichment tool is based on an over-representation analysis framework. Therefore, cell type-specific CpG sets were constructed focusing on intermediately methylated CpGs within each cell type. Moreover, multiple sets per cell type were constructed as different specificity levels:
+mCEA is based on an over-representation analysis framework. Therefore, cell type-specific CpG sets were constructed focusing on intermediately methylated CpGs within each cell type. Moreover, multiple sets per cell type were constructed as different specificity levels:
 
 High-specificity: intermediate methylation value in only one cell type
 
