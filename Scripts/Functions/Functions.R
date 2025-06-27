@@ -85,15 +85,15 @@ CpG_ORA <- function(input, background, specificity_level) {
   
   # selects the CpG sets to be used based on the confidence level parameter
   if (specificity_level == 1){
-    load("D:/University Data/Internship_raw_data_analysis/Lvl1_CpG_sets_Annotated.RData")
+    load("Lvl1_CpG_sets_Annotated.RData")
     
     signature_list <- list("IRF8_lvl1_set", "SOX10_lvl1_set", "NeuN_lvl1_set", "TN_lvl1_set")
   } else if (specificity_level == 2) {
-    load("D:/University Data/Internship_raw_data_analysis/Lvl2_CpG_sets_Annotated.RData")
+    load("Lvl2_CpG_sets_Annotated.RData")
     
     signature_list <- list("IRF8_lvl2_set", "SOX10_lvl2_set", "NeuN_lvl2_set", "TN_lvl2_set")
   } else if (specificity_level == 3) {
-    load("D:/University Data/Internship_raw_data_analysis/Lvl3_CpG_sets_Annotated.RData")
+    load("Lvl3_CpG_sets_Annotated.RData")
     
     signature_list <- list("IRF8_lvl3_set", "SOX10_lvl3_set", "NeuN_lvl3_set", "TN_lvl3_set")
   }
@@ -168,7 +168,10 @@ CpG_ORA <- function(input, background, specificity_level) {
     }
   }
   # adjust for multiple testing (4 tests in each specificity level)
-  results$qvalue <- p.adjust(results$pvalue, "bonferroni")
+  #results$qvalue <- p.adjust(results$pvalue, "bonferroni")
+  # adjust for multiple testing (4 tests in each of the 3 specificity levels: 4 * 3 = 12)
+  results$qvalue <- pmin(results$pvalue * 12, 1) # changed assuming all tests will be considered in the results
+  
   # returns a dataframe with the results
   return(results)
 }

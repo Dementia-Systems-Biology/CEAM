@@ -8,7 +8,8 @@ check_and_load_libraries(c(
   "khroma",
   "scales",
   "dplyr",
-  "ggplot2"
+  "ggplot2",
+  "openxlsx"
 ))
 
 #### read data from Tiane A, Schepers M, Reijnders RA, van Veggel L, Chenine S, Rombaut B, et al. From methylation to myelination: epigenomic and transcriptomic profiling of chronic inactive demyelinated multiple sclerosis lesions. Acta Neuropathol. 2023 Aug 1;146(2):283–99. 

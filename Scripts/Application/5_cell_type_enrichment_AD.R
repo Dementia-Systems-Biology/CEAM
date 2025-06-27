@@ -26,15 +26,15 @@ ORA_results_1 <- CpG_ORA(input = AD_CpGs$Probe, background = background_450, spe
 
 # Medium-specificity results
 ORA_results_2 <- CpG_ORA(input = AD_CpGs$Probe, background = background_450, specificity_level = 2)
-upset_lvl2 <- plot_CpG_UpSet(ORA_results_2, "Enrichment results lvl2")
+upset_lvl2 <- plot_CpG_UpSet(ORA_results_2)
 # change the axis title
 upset_lvl2[[3]] <- upset_lvl2[[3]] + ylab("Overlap Size")
 # add asterisks manually to indicate significance
-upset_lvl2 <- annotate_sig(upset_lvl2, sig_label = c("*", "", "", ""))
+upset_lvl2 <- annotate_sig(upset_lvl2, sig_label = c("*", "", "", "*"))
 
 # Low-specificity results
 ORA_results_3 <- CpG_ORA(input = AD_CpGs$Probe, background = background_450, specificity_level = 3)
-upset_lvl3 <- plot_CpG_UpSet(ORA_results_3, "Enrichment results lvl3")
+upset_lvl3 <- plot_CpG_UpSet(ORA_results_3)
 # change the axis title
 upset_lvl3[[3]] <- upset_lvl3[[3]] + ylab("Overlap Size")
 # add asterisks manually to indicate significance

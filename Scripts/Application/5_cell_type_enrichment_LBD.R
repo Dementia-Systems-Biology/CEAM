@@ -37,7 +37,7 @@ lvl3 <- plot_CpG_UpSet(ORA_results_3)
 # change the axis title
 lvl3[[3]] <- lvl3[[3]] + ylab("Overlap Size")
 # add asterisks manually to indicate significance
-lvl3 <- annotate_sig(lvl3, sig_label = c("*", "*", "", ""))
+lvl3 <- annotate_sig(lvl3, sig_label = c("*", "", "", ""))
 
 # combine to one plot object
 combined <- (wrap_elements(lvl2) | wrap_elements(lvl3)) + 
