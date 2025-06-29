@@ -14,7 +14,7 @@ check_and_load_libraries(c(
 load("UKBBN2_betas.RData")
 
 # prepare the clusters
-cl <- makeCluster(14) # 16 cores is fast enough, but more cores would improve speed further if desired
+cl <- makeCluster(16) # 16 cores is fast enough, but more cores would improve speed further if desired
 
 UKBBN2_pheno$Cell_Type <- gsub(" ", replacement = "", x = UKBBN2_pheno$Cell_Type)
 
