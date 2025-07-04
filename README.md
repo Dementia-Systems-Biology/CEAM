@@ -1,4 +1,4 @@
-# Methylation-Cell-Type-Enrichment-Analysis (CEAM)
+# Cell-type Enrichment Analysis for Methylation (CEAM)
 The developed method for cell type enrichment using methylation data is an over-representation analysis approach. This repository contains the scripts used for constructing the cell type-specific CpG sets, testing the method with simulated data and applying it to various EWAS results. The data used for establishing this method are not publicly avaialable, however the resulting CpG sets and enrichment results are available within this repository or in the supplementary materials found here (bioXriv link). The R scripts used for this method can be found in the Scripts folder.
 
 The current version of CEAM was constructed on the on the four main brain cell types: neurons, microglia, oligodendrocytes, and astrocytes, using nuclei-sorted samples of neurologically elderly brains. This makes the current version of the CEAM highly specific for use cases in elderly brains such as neurodegenerative disorders. However, phenotypes far outside the scope of elderly brains and cancer may be not applicable to the current function of CEAM. Moreover, the brain samples used in the construction of this method were obtained from the prefrontal cortex and cingulate gyrus. Therefore, applying the tool to results of other brain regions may yield unexpected or spurious results. Although our application to EWAS results have shown enrichment results to be plausible within the light of current disease knowledge, despite these EWAS results being obtained from different brain regions.
@@ -7,7 +7,7 @@ The current version of CEAM was constructed on the on the four main brain cell t
 If you use the CEAM tool or the cell type-specific CpG sets please reference:
 (DOI coming soon)
 # Quick Start
-For a fast and easy cell type enrichment analysis we provide an app hosted here: (shinyapps.io link here)
+For a fast and easy cell type enrichment analysis we provide an app hosted here: (https://um-dementia-systems-biology.shinyapps.io/CEAM/)
 Or download the Enrichment_Analysis_App.zip folder to run it locally
 
 Steps:
