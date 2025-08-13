@@ -5,7 +5,8 @@ The current version of CEAM was constructed on the on the four main brain cell t
 
 # Citation
 If you use the CEAM tool or the cell type-specific CpG sets please reference:
-(DOI coming soon)
+Müller J, Laroche V, Imm J, Weymouth L, Harvey J, Smith AR, et al. A Cell Type Enrichment Analysis Tool for Brain DNA Methylation Data (CEAM) [Internet]. bioRxiv; p. 2025.07.08.663671. https://doi.org/10.1101/2025.07.08.663671
+
 # Quick Start
 For a fast and easy cell type enrichment analysis we provide an app hosted here: (https://um-dementia-systems-biology.shinyapps.io/CEAM/)
 Or download the Enrichment_Analysis_App.zip folder to run it locally
