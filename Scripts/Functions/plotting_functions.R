@@ -43,7 +43,7 @@ make_stacked_bar <- function(cohort1_list,
       CellType = cell_type,
       CpG_Type = c("Shared", unique1_name, unique2_name),
       Count = c(length(shared), length(unique1), length(unique2)),
-      Coverage = paste("(",round((c(length(shared)/866238, length(unique1)/866238, length(unique2)/866238) *100), 1), "%", ")", sep = "") # same as count but divided by all probes in an .idat file
+      Coverage = paste("(",round((c(length(shared)/778549, length(unique1)/778549, length(unique2)/778549) *100), 1), "%", ")", sep = "") # same as count but divided by all probes in an .idat file
     )
     df$count_with_percentage <- paste(df$Count, df$Coverage, sep = "\n")
     return(df)
