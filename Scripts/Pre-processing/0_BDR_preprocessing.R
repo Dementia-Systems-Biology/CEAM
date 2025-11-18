@@ -1,4 +1,4 @@
-source("Scripts/Functions.R")
+source("Scripts/Functions/Functions.R")
 #### Required packages
 check_and_load_libraries(c(
   "wateRmelon",
@@ -9,16 +9,18 @@ check_and_load_libraries(c(
   "IlluminaHumanMethylationEPICanno.ilm10b4.hg19",
   "RPMM",
   "dplyr",
-  "tidyr"
+  "tidyr",
+  "GEOquery"
 ))
 
 
 #### Reading the data
 # meta data
-load("pheno_BDR.Rdata")
-
+gse <- GEOquery::getGEO("GSE306226", GSEMatrix = T)
+meta <- gse[[1]]@phenoData@data
+meta$Basename <- paste0(meta$geo_accession, "_", meta$description, sep = "")
 # reading idat files into extended rgSet object
-rgSetEXT <- read.metharray.exp(base = "BDR_FANS/", extended = T, targets = pheno)
+rgSetEXT <- read.metharray.exp(base = "Data/GSE306226_RAW/", extended = T, targets = meta)
 
 #### Bisulfite conversion
 bsc <- bscon(rgSetEXT)
@@ -46,7 +48,7 @@ rgSetEXT <- rgSetEXT[, !sampleNames(rgSetEXT) %in% bsc_data[bsc_data$value < 80,
 
 #### Outlier detection
 outliers <- outlyx(rgSetEXT, plot=FALSE)
-rgSetEXT = rgSetEXT[, sampleNames(rgSetEXT) %in% rownames(outliers[outliers$outliers == FALSE,])] # 253 samples left
+rgSetEXT = rgSetEXT[, sampleNames(rgSetEXT) %in% rownames(outliers[outliers$outliers == FALSE,])]
 print(outliers[outliers$outliers == TRUE, ])
 
 
@@ -57,10 +59,8 @@ rgSetEXT_pfilter <- pfilter(rgSetEXT)
 estimatesex = wateRmelon::estimateSex(getBeta(rgSetEXT_pfilter), do_plot=T) 
 
 # merge estimated sex and observed sex information to compare
-rownames(pheno) <- pheno$Basename
-estimatesex_merged <- merge(estimatesex, pheno, by = 'row.names', all.x = T, all.y = F)
-# reformat Sex values
-estimatesex_merged$Sex <- ifelse(estimatesex_merged$Sex == "M", "Male", "Female")
+rownames(meta) <- meta$Basename
+estimatesex_merged <- merge(estimatesex, meta, by = 'row.names', all.x = T, all.y = F)
 
 # find which do not match between predicted and observed and remove them
 mismatch_sex <- estimatesex_merged[which(!estimatesex_merged$predicted_sex == estimatesex_merged$Sex), "Row.names"]
@@ -103,15 +103,15 @@ density_nor <- gather(as.data.frame(mset_betas_lm))
     theme(legend.position =  "none"))
 
 ### Removing SNP CpG sites
-SNPall = read.table("SNPProbes_McCartney.txt", header = T) # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
+SNPall = read.table("Data/SNPProbes_McCartney.txt", header = T) # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
 
 SNPallEURAF = SNPall[which(SNPall$EUR_AF >= 0.05 & SNPall$EUR_AF <= 0.95),]
 
 #### Removing Cross-hybridising sites
-crosshyb = read.table("CrossHydridisingProbes_McCartney.txt") # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
+crosshyb = read.table("Data/CrossHydridisingProbes_McCartney.txt") # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
 
 #### Removing X and Y chromosomes probes
-manifest_EPIC = read.csv("MethylationEPIC_v-1-0_B4.csv", header = T, skip = 7)
+manifest_EPIC = read.csv("Data/MethylationEPIC_v-1-0_B4.csv", header = T, skip = 7)
 manifest_EPIC_XY = manifest_EPIC[manifest_EPIC$CHR %in% c("X", "Y"),]
 
 to_remove_cpgs = unique(c(SNPallEURAF$IlmnID, manifest_EPIC_XY$IlmnID, crosshyb$V1))
@@ -138,18 +138,19 @@ scores_only_all <- as.data.frame(pca_result$x)
 #PCA results are combined with phenotype data
 pca_result_sample_info <- scores_only_all %>%
   mutate(ID = row.names(scores_only_all)) %>%
-  inner_join(pheno, by = c("ID" = "Basename"))
+  inner_join(meta, by = c("ID" = "Basename"))
 
 (PCA_celltype <- ggplot(pca_result_sample_info, aes(x = PC1, y = PC2)) + 
-    geom_point(aes(color = Cell_Type ), alpha = 0.7) +
+    geom_point(aes(color = `cell type:ch1` ), alpha = 0.7) +
     coord_fixed(1) +
     labs(
       x = paste0("PC1 (",round(summary(pca_result)$importance[2,1]*100, 1), "%)"),
       y = paste0("PC2 (", round(summary(pca_result)$importance[2,2]*100, 2), "%)"),
-      color = "Cell Type"))
+      color = "cell type:ch1"))
 
 # rename the variables for later use in other scripts
 BDR_betas <- mset_betas_lm
-BDR_pheno <- pheno # no meta data was removed because no samples were removed
+BDR_pheno <- meta # no meta data was removed because no samples were removed
+BDR_mval <- Beta2M(mset_betas_lm)
 
-save(BDR_pheno, BDR_betas, file = "BDR_betas.RData")
+save(BDR_pheno, BDR_betas, BDR_mval, file = "Data/BDR_betas.RData")

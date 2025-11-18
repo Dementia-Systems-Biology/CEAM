@@ -1,4 +1,4 @@
-source("Scripts/Functions.R")
+source("Scripts/Functions/Functions.R")
 #### Required packages
 check_and_load_libraries(c(
   "wateRmelon",
@@ -9,16 +9,21 @@ check_and_load_libraries(c(
   "IlluminaHumanMethylationEPICanno.ilm10b4.hg19",
   "RPMM",
   "dplyr",
-  "tidyr"
+  "tidyr",
+  "GEOquery"
 ))
 
 #### Reading the data
 # meta data
-meta <- read.csv("UKBBN2_pheno.csv", header = T)
+# gse <- GEOquery::getGEO("GSE306227", GSEMatrix = T)
+# meta <- gse[[1]]@phenoData@data
+# meta$Basename <- paste0(meta$geo_accession, "_", meta$description, sep = "")
 
+meta <- read.csv("Data/UKBBN2_FANS/UKBBN2_pheno.csv", header = T)
 # reading idat files into extended rgSet object
-rgSetEXT <- read.metharray.exp(base = "UKBBN2_FANS/", extended = T, targets = meta) # this function automatically recognizes the "basename" column
+#rgSetEXT <- read.metharray.exp(base = "Data/GSE306227_RAW/", extended = T, targets = meta) # this function automatically recognizes the "basename" column
 
+rgSetEXT <- read.metharray.exp(base = "Data/UKBBN2_FANS/", extended = T, targets = meta) # this function automatically recognizes the "basename" column
 #### check bisulfite conversion #### 
 bsc <- bscon(rgSetEXT) # all samples have good bsc
 
@@ -55,7 +60,7 @@ estimatesex = wateRmelon::estimateSex(getBeta(rgSetEXT_pfilter), do_plot=T)
 # merge estimated sex and observed sex information to compare
 rownames(meta) <- meta$Basename
 estimatesex_merged <- merge(estimatesex, meta, by = 'row.names', all.x = T, all.y = F)
-# reformat Sex values
+
 estimatesex_merged$Sex <- ifelse(estimatesex_merged$Sex == "M", "Male", "Female")
 
 # find which do not match between predicted and observed and remove them
@@ -101,43 +106,45 @@ density_nor <- gather(as.data.frame(mset_betas_lm))
 # remove the meta data of the sample removed in the outlyx function
 meta <- meta[meta$Basename %in% colnames(mset_betas_lm),]
 
-if (all(meta$Basename == colnames(mset_betas_lm))){ # ensuring that samples are in the same order
-  mset_betas_lm = ComBat(dat=mset_betas_lm, batch=as.character(meta$Institute), mod=NULL, par.prior=TRUE, prior.plots=FALSE)
+mset_betas_lm_no_combat <- mset_betas_lm
+mset_mval <- Beta2M(mset_betas_lm)
+
+if (all(meta$Basename == colnames(mset_mval))){ # ensuring that samples are in the same order
+  mset_mval = ComBat(dat=mset_mval, batch=as.character(meta$Institute), mod=NULL, par.prior=TRUE, prior.plots=FALSE)
   
 }
 
-
 ### Removing SNP CpG sites
-SNPall = read.table("SNPProbes_McCartney.txt", header = T) # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
+SNPall = read.table("Data/SNPProbes_McCartney.txt", header = T) # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
 SNPallEURAF = SNPall[which(SNPall$EUR_AF >= 0.05 & SNPall$EUR_AF <= 0.95),]
 
 #### Removing Cross-hybridising sites
-crosshyb = read.table("CrossHydridisingProbes_McCartney.txt") # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
+crosshyb = read.table("Data/CrossHydridisingProbes_McCartney.txt") # obtained from McCartney DL, Walker RM, Morris SW, McIntosh AM, Porteous DJ, Evans KL. Identification of polymorphic and off-target probe binding sites on the Illumina Infinium MethylationEPIC BeadChip. Genom Data. 2016 Sep;9:22–4. 
 
 #### Removing X and Y chromosomes probes
-manifest_EPIC = read.csv("MethylationEPIC_v-1-0_B4.csv", header = T, skip = 7)
+manifest_EPIC = read.csv("Data/MethylationEPIC_v-1-0_B4.csv", header = T, skip = 7)
 manifest_EPIC_XY = manifest_EPIC[manifest_EPIC$CHR %in% c("X", "Y"),]
 
 to_remove_cpgs = unique(c(SNPallEURAF$IlmnID, manifest_EPIC_XY$IlmnID, crosshyb$V1))
 #### From the 3 steps above you should remove 72240 CpGs in total
 
 #### Removing Non-CpG sites
-non_CpG_probes = rownames(mset_betas_lm[grep("ch.", rownames(mset_betas_lm)),])
-mset_betas_lm = mset_betas_lm[!rownames(mset_betas_lm) %in% non_CpG_probes,]
-dim(mset_betas_lm)
+non_CpG_probes = rownames(mset_mval[grep("ch.", rownames(mset_mval)),])
+mset_mval = mset_mval[!rownames(mset_mval) %in% non_CpG_probes,]
+dim(mset_mval)
 
 #### Removing Reference SNPs
-ref_SNP_probes = rownames(mset_betas_lm[grep("rs", rownames(mset_betas_lm)),])
-mset_betas_lm = mset_betas_lm[-(which(rownames(mset_betas_lm) %in% to_remove_cpgs)),]
-mset_betas_lm = mset_betas_lm[!rownames(mset_betas_lm) %in% ref_SNP_probes,]
+ref_SNP_probes = rownames(mset_mval[grep("rs", rownames(mset_mval)),])
+mset_mval = mset_mval[-(which(rownames(mset_mval) %in% to_remove_cpgs)),]
+mset_mval = mset_mval[!rownames(mset_mval) %in% ref_SNP_probes,]
 
 #### Removing Non-CpG sites
-non_CpG_probes = rownames(mset_betas_lm[grep("ch.", rownames(mset_betas_lm)),])
-mset_betas_lm = mset_betas_lm[!rownames(mset_betas_lm) %in% non_CpG_probes,]
-dim(mset_betas_lm)
+non_CpG_probes = rownames(mset_mval[grep("ch.", rownames(mset_mval)),])
+mset_mval = mset_mval[!rownames(mset_mval) %in% non_CpG_probes,]
+dim(mset_mval)
 
 #### Performing PCA
-pca_result <-  prcomp(t(mset_betas_lm),        
+pca_result <-  prcomp(t(mset_mval),        
                       retx = TRUE,
                       center =TRUE,
                       scale = FALSE,
@@ -150,15 +157,19 @@ pca_result_sample_info <- scores_only_all %>%
   inner_join(meta, by = c("ID" = "Basename"))
 
 (PCA_celltype <- ggplot(pca_result_sample_info, aes(x = PC1, y = PC2)) + 
-    geom_point(aes(color = Cell_Type ), alpha = 0.7) +
+    geom_point(aes(color = `cell type:ch1` ), alpha = 0.7) +
     coord_fixed(1) +
     labs(
       x = paste0("PC1 (",round(summary(pca_result)$importance[2,1]*100, 1), "%)"),
       y = paste0("PC2 (", round(summary(pca_result)$importance[2,2]*100, 1), "%)"),
-      color = "Cell Type"))
+      color = "cell type:ch1"))
 
 # rename the variables for later use in other scripts
-UKBBN2_betas <- mset_betas_lm
-UKBBN2_pheno <- meta # no meta data was removed because no samples were removed
+UKBBN2_betas <- M2Beta(mset_mval)
+UKBBN2_pheno <- meta
+UKBBN2_mval <- mset_mval
 
-save(UKBBN2_pheno, UKBBN2_betas, file = "UKBBN2_betas.RData")
+save(UKBBN2_pheno, UKBBN2_betas, UKBBN2_mval, file = "Data/UKBBN2_betas.RData")
+
+UKBBN2_betas_nocombat <- mset_betas_lm_no_combat
+save(UKBBN2_betas, UKBBN2_betas_nocombat, UKBBN2_pheno, file = "Data/UKBBN2_combat_vs_nocombat.RData")

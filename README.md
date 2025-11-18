@@ -1,7 +1,7 @@
 # Cell-type Enrichment Analysis for Methylation (CEAM)
-The developed method for cell type enrichment using methylation data is an over-representation analysis approach. This repository contains the scripts used for constructing the cell type-specific CpG sets, testing the method with simulated data and applying it to various EWAS results. The data used for establishing this method are not publicly avaialable, however the resulting CpG sets and enrichment results are available within this repository or in the supplementary materials found here (bioXriv link). The R scripts used for this method can be found in the Scripts folder.
+The developed method for cell type enrichment using methylation data is an over-representation analysis approach. This repository contains the scripts used for constructing the cell type-specific CpG sets, testing the method with simulated data and applying it to various EWAS results. The data used for establishing this method can be found through GEO under accession numbers [GSE306226]{https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE306226} and [GSE306227]{https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE306227}. The R scripts used for this method can be found in the Scripts folder.
 
-The current version of CEAM was constructed on the on the four main brain cell types: neurons, microglia, oligodendrocytes, and astrocytes, using nuclei-sorted samples of neurologically elderly brains. This makes the current version of the CEAM highly specific for use cases in elderly brains such as neurodegenerative disorders. However, phenotypes far outside the scope of elderly brains and cancer may be not applicable to the current function of CEAM. Moreover, the brain samples used in the construction of this method were obtained from the prefrontal cortex and cingulate gyrus. Therefore, applying the tool to results of other brain regions may yield unexpected or spurious results. Although our application to EWAS results have shown enrichment results to be plausible within the light of current disease knowledge, despite these EWAS results being obtained from different brain regions.
+The current version of CEAM was constructed on the on the four main brain cell types: neurons, microglia, oligodendrocytes, and astrocytes (astrocyte-enriched fraction), using nuclei-sorted samples of neurologically healthy elderly brains. This makes the current version of the CEAM highly specific for use cases in elderly brains such as neurodegenerative disorders. However, phenotypes far outside the scope of elderly brains and cancer may not be applicable to the current function of CEAM. Moreover, the brain samples used in the construction of this method were obtained from the prefrontal cortex and cingulate gyrus. Therefore, applying the tool to results of other brain regions may yield unexpected or spurious results. Although our application to EWAS results have shown enrichment results to be plausible within the light of current disease knowledge, despite these EWAS results being obtained from different brain regions.
 
 # Citation
 If you use the CEAM tool or the cell type-specific CpG sets please reference:
@@ -27,16 +27,17 @@ Medium-specificity: intermediate methylation value in multiple cell types
 
 Low-specificity: methylation value significantly different from all other cell types
 
-These CpG sets were constructed with increasing coverage but decreasing cell type-specificity. The tool performs a hypergeometric test comparing the user's input CpGs to the user-specified CpG set of the desired specificity level and returns the resulting odds ratio, P-value and q-value (adjusted p-value for multiple testing).
+These CpG sets were constructed with increasing coverage but decreasing cell type-specificity. The tool performs a hypergeometric test comparing the user's input CpGs to the user-specified CpG set of the desired specificity level and returns the resulting odds ratio, P-value and Bonferroni corrected P-value.
 
 # Interpretation of the Results
 Since the CpG sets for each cell type are constructed with a focus on intermediately methylated cytosines, the interpretation remains straightforward. Enrichment in a cell type indicates that from the differentially methylated CpGs more than by chance are overlapping with the intermediately methylated CpGs within a cell type. Since intermediately methylated CpGs have been shown to have a higher cell-to-cell and inter-individual variability, it is likely that the observed signal in your bulk data is driven by changes in these intermediately methylated CpGs within the enriched cell type(s).
 To summarize: enrichment of a cell type indicates that observed bulk changes are likely occurring within that cell type.
 
 
+
 Shield: [![CC BY-NC 4.0][cc-by-nc-shield]][cc-by-nc]
 
-This work is licensed under a
+Any non-code file of this work is licensed under a
 [Creative Commons Attribution-NonCommercial 4.0 International License][cc-by-nc].
 
 [![CC BY-NC 4.0][cc-by-nc-image]][cc-by-nc]

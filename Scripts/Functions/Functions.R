@@ -1,13 +1,17 @@
-# Function to check, install, and load libraries
+# Function to check, install, and load libraries (note that this function changes the default repository temporarily)
 check_and_load_libraries <- function(libraries) {
+  options(repos ="https://packagemanager.posit.co/cran/2025-06-01") # an older version of the packages was required due to some unforeseen errors encountered in plotting
+  
   for (lib in libraries) {
     if (!requireNamespace(lib, quietly = TRUE)) {
       message(paste("Installing missing package:", lib))
-      BiocManager::install(lib, dependencies = TRUE)
+      BiocManager::install(lib, dependencies = TRUE) # an older version of the packages was required due to some unforeseen errors encountered in plotting
     }
     library(lib, character.only = TRUE)
     message(paste("Successfully loaded package:", lib))
   }
+  options(repos ="https://cran.rstudio.com/")
+  
 }
 
 # function wrapper to detect hypo- and hyper-methylated CpGs with an apply function for efficiency
@@ -85,15 +89,15 @@ CpG_ORA <- function(input, background, specificity_level) {
   
   # selects the CpG sets to be used based on the confidence level parameter
   if (specificity_level == 1){
-    load("Lvl1_CpG_sets_Annotated.RData")
+    load("CpG sets/Lvl1_CpG_sets_Annotated.RData")
     
     signature_list <- list("IRF8_lvl1_set", "SOX10_lvl1_set", "NeuN_lvl1_set", "TN_lvl1_set")
   } else if (specificity_level == 2) {
-    load("Lvl2_CpG_sets_Annotated.RData")
+    load("CpG sets/Lvl2_CpG_sets_Annotated.RData")
     
     signature_list <- list("IRF8_lvl2_set", "SOX10_lvl2_set", "NeuN_lvl2_set", "TN_lvl2_set")
   } else if (specificity_level == 3) {
-    load("Lvl3_CpG_sets_Annotated.RData")
+    load("CpG sets/Lvl3_CpG_sets_Annotated.RData")
     
     signature_list <- list("IRF8_lvl3_set", "SOX10_lvl3_set", "NeuN_lvl3_set", "TN_lvl3_set")
   }
@@ -117,9 +121,12 @@ CpG_ORA <- function(input, background, specificity_level) {
         # find which probe identifiers overlap and drive enrichment
         results[x, "enriched_CpGs"] <- paste0(set_intersect, collapse = ",")
         # compute odds ratio
-        results[x, "Odds.ratio"] <- ((length(background) - length(set_union)) * length(set_intersect))/
-          ((length(set) - length(set_intersect)) * (length(input) - length(set_intersect)))
-        
+        if (((length(set) - length(set_intersect)) * (length(input) - length(set_intersect))) == 0 | length(set_intersect) == 0) { #in case the denominator is 0 or there is no overlap
+          results[x, "Odds.ratio"] <- NA
+        } else {
+          results[x, "Odds.ratio"] <- ((length(background) - length(set_union)) * length(set_intersect))/
+            ((length(set) - length(set_intersect)) * (length(input) - length(set_intersect)))
+        }
         # hypergeometric test
         results[x, "pvalue"] <- phyper(q = length(set_intersect) - 1 ,
                                        m = length(input),
@@ -168,63 +175,74 @@ CpG_ORA <- function(input, background, specificity_level) {
     }
   }
   # adjust for multiple testing (4 tests in each specificity level)
-  #results$qvalue <- p.adjust(results$pvalue, "bonferroni")
-  # adjust for multiple testing (4 tests in each of the 3 specificity levels: 4 * 3 = 12)
-  results$qvalue <- pmin(results$pvalue * 12, 1) # changed assuming all tests will be considered in the results
-  
+  results$qvalue <- p.adjust(results$pvalue, "bonferroni")
+  # NOTE: this assumes that a single specificity level is used to interpret the results.
+  #   if multiple specificity levels will be used we implore the users to correct the raw p-values appropriately (for example BH correction)
+
   # returns a dataframe with the results
   return(results)
 }
 
-# function to create UpSet plots from cell type enrichment results
-plot_CpG_UpSet <- function(ORA_result, min_set_size = 3, num_breaks = 3){
-  # Prepare input list
-  tmp <- strsplit(ORA_result$enriched_CpGs, split = ",")
-  # change the names to the abbreviations
-  names(tmp) <- sapply(rownames(ORA_result), function(x) {
-    if (grepl("NeuN", x)) {
-      "NEU"
-    } else if (grepl("IRF8", x)) {
-      "MG"
-    } else if (grepl("SOX10", x)) {
-      "OLIG"
-    } else if (grepl("TN", x)) {
-      "AST"
-    } else {
-      x  # fallback to original name if no match
-    }
-  })
-  
-  list_input <- UpSetR::fromList(tmp)
-  colnames(list_input) <- names(tmp)
-  rownames(list_input) <- unique(unlist(tmp))
-  list_input <- as.data.frame(list_input == 1)
-  
-  # Plot
-  ComplexUpset::upset(
-    list_input,
-    names(tmp),
-    name = "CpG sets",
-    base_annotations=list(
-      'Intersection size'=intersection_size(counts=FALSE) # change to TRUE if values should be displayed
-    ),
-    min_size = min_set_size,
-    set_sizes = (
-      upset_set_size() +
-        scale_y_reverse(
-          breaks = scales::pretty_breaks(n = num_breaks) # makes nicer breaks for visualizing total overlap size
-        ) +
-        theme(axis.text.x = element_text(angle = 90))
-    ),
-    width_ratio = 0.3)
+
+# function to extract relevant information from the dataframes resulting from the simulations
+extract_sim_results <- function(data, group, OR_col, p_val_col){
+  data %>%
+    dplyr::select(all_of(c(group, OR_col, p_val_col))) %>%
+        mutate(
+      "{OR_col}" := ifelse(.data[[OR_col]] == 0, NA, .data[[OR_col]])
+    ) %>%
+  group_by(.data[[group]]) %>%
+    summarise(
+      median.OR = median(.data[[OR_col]], na.rm = TRUE),
+      median.p = median(.data[[p_val_col]], na.rm = TRUE),
+      lower_OR = quantile(.data[[OR_col]], probs = 0.25, na.rm = TRUE),
+      upper_OR = quantile(.data[[OR_col]], probs = 0.75, na.rm = TRUE),
+      lower_P = quantile(.data[[p_val_col]], probs = 0.25, na.rm = TRUE),
+      upper_P = quantile(.data[[p_val_col]], probs = 0.75, na.rm = TRUE)
+    ) %>%
+    ungroup()
 }
 
-# function to manually annotate UpSet plots
-annotate_sig <- function(upset, sig_label) {
-  #' @param upset the UpSet plot object from ComplexUpset to be annotated
-  #' @param sig_label a vector of characters used to indicate significance in the barplot, commonly "*"
-  pbuilt <- ggplot_build(upset[[3]])
-  bar_data <- pbuilt$data[[2]]  # Usually the first layer is the bars
-  upset[[3]] <- upset[[3]] +  annotate("text", x = as.numeric(bar_data[,"x"]) -0.15, y = bar_data[,"count"] + 0.1*bar_data[,"count"], label = sig_label, size = 6)
-  return(upset)
+
+# function to resample a random background with CpGs matched by context and probe design
+matched_sample <- function(input_cpgs,background, manifest) {
+  # subset the manifest to only the relevant CpGs
+  probe_context_bg <- manifest %>%
+    filter(IlmnID %in% background)
+  
+  # split the multiple options for UCSC_RefGene_Group
+  probe_context_bg <- probe_context_bg %>%
+    tidyr::separate_rows(UCSC_RefGene_Group, sep = ";") %>%  # expands rows by each annotation
+    mutate(UCSC_RefGene_Group = trimws(UCSC_RefGene_Group))    # clean up spaces
+  
+  # Step 3: create stratum (context grouping)
+  probe_context_bg <- probe_context_bg %>%
+    mutate(stratum = interaction(Relation_to_UCSC_CpG_Island, 
+                                 Infinium_Design_Type, 
+                                 UCSC_RefGene_Group, 
+                                 drop = TRUE)) %>%
+    distinct() # remove exact duplicates
+  
+  # get the CpG context for the real input CpGs
+  context_real <- probe_context_bg %>%
+    filter(IlmnID %in% input_cpgs) %>%
+    slice_sample(prop = 1) %>% #randomize order so a random CpG gets removed when resolving duplicates
+    distinct(IlmnID, stratum) %>%   # ensure each CpG only counted once per stratum
+    count(stratum, name = "n")
+
+  matched_samples <- context_real %>%
+    group_by(stratum) %>%
+    group_modify(~ {
+      candidates <- probe_context_bg %>%
+        filter(stratum == .y$stratum, !(IlmnID %in% input_cpgs)) %>%
+        slice_sample(prop = 1) %>%       # randomize order for duplicate removal
+        distinct(IlmnID, .keep_all = TRUE) # remove duplicate CpGs
+      n_to_sample <- min(nrow(candidates), .x$n)
+      sample_n(candidates, n_to_sample) %>%
+        select(-stratum)  # <- drop grouping variable
+    }) %>%
+    ungroup() %>%
+    pull(IlmnID)
+  
+  return(matched_samples)
 }

@@ -1,4 +1,5 @@
-source("Scripts/Functions.R")
+source("Scripts/Functions/Functions.R")
+source("Scripts/Functions/plotting_functions.R")
 
 # load required packages
 check_and_load_libraries(c(
@@ -15,7 +16,7 @@ check_and_load_libraries(c(
   "truncnorm"
 ))
 
-load("Lvl2_CpG_sets_Annotated.RData")
+load("CpG sets/Lvl2_CpG_sets_Annotated.RData")
 
 # find set sizes of real data
 set_sizes <- c(length(NeuN_lvl2_set$cpg), 
@@ -23,7 +24,8 @@ set_sizes <- c(length(NeuN_lvl2_set$cpg),
                length(SOX10_lvl2_set$cpg), 
                length(TN_lvl2_set$cpg)) # set sizes of lvl2 confidence
 names(set_sizes) <- c("NeuN", "IRF8", "SOX10", "TN")
-background_size <- 785614
+
+background_size <- 792816 # the cpgs of the EPIC array after pre-processing
 
 # initialize the nr of CpGs and samples that should be simulated
 sample_num <- 250
@@ -116,19 +118,28 @@ colnames(sim_result) <- c("sig_hits", "overlap", "non_overlap", "sig_hits_correc
 colnames(sim_result_FDR) <- c("sig_hits", "overlap", "non_overlap", "sig_hits_corrected", "overlap_corrected", "non_overlap_corrected")
 
 # create objects to store enrichment results
-ORA_res <- data.frame(matrix(nrow = iter, ncol=4))
+ORA_res <- data.frame(matrix(nrow = 4, ncol=4))
 colnames(ORA_res) <- c("p_val", "p_FDR", "p_val_corrected", "p_FDR_corrected")
+
+# prepare matrices to store MSE and RMSE values in
+rmse_mat <- matrix(NA, nrow = n_replicates, ncol = length(noise_seq))
+mse_mat  <- matrix(NA, nrow = n_replicates, ncol = length(noise_seq))
+
 # prepare cluster for faster computation
-cl <- makeCluster(24)
+cl <- makeCluster(14)
 clusterEvalQ(cl, library(msm))
 
 # use a counter for quick indexing of results
 counter <- 1
+j <- 0
 
 for (noise in noise_seq){
   set.seed(13)
   replicate_results <- data.frame()
+  j <- j+1 # index for storing MSE and RMSE values
   for (i in 1:n_replicates){
+    print(paste("Computing:", noise, "noise at replicate number:", i))
+    
     # ASSUMPTION: CpGs within a certain set behave as they did in the set (ct is 0.1-0.9 and non-ct is < 0.1 | > 0.9)
     # select X CpGs from a set of interest (start with NeuN)
     
@@ -387,6 +398,8 @@ for (noise in noise_seq){
       proportions_var_noise <- proportions_var
     }
     
+    rmse_mat[i,j] <- sqrt(mean((as.matrix(proportions_var) - as.matrix(proportions_var_noise))^2))
+    mse_mat[i,j] <- mean((as.matrix(proportions_var) - as.matrix(proportions_var_noise))^2)
     
     # combine all beta values as a linear combination of these 4 cell types
     bulk_data_change <- NeuN_bulk + IRF8_bulk + SOX10_bulk + TN_bulk
@@ -730,7 +743,6 @@ for (noise in noise_seq){
     replicate_row <- cbind(sim_result, sim_result_FDR, ORA_res[1,],ORA_res[2,],ORA_res[3,],ORA_res[4,], noise)
     replicate_results <- rbind(replicate_results, replicate_row)
     
-    print(paste("Computing:", noise, "at replicate number:", i))
   }
   # summarize results for all iterations
   result_summary <- data.frame(
@@ -749,4 +761,154 @@ for (noise in noise_seq){
 # stop the workers
 stopCluster(cl)
 # save the data
-save.image("sim_workspaces/DNAm_sim_CT_lvl2.RData")
+#save.image("sim_workspaces/DNAm_sim_CT_lvl2.RData")
+
+# load the results
+load("sim_res_shift_med.RData")
+
+# rename the columns to resolve duplicate colnames
+colnames(results_df)[7:12] <- paste0(colnames(results_df)[7:12], "_FDR")
+
+colnames(results_df)[c(14,16:18)] <- paste0(colnames(results_df)[c(14,16:18)], "_NEU")
+colnames(results_df)[c(20,22:24)] <- paste0(colnames(results_df)[c(20,22:24)], "_MG")
+colnames(results_df)[c(26,28:30)] <- paste0(colnames(results_df)[c(26,28:30)], "_OLIG")
+colnames(results_df)[c(32,34:36)] <- paste0(colnames(results_df)[c(32,34:36)], "_AST")
+
+
+# plot the results into 4 line plots
+
+OR_max <- 15
+
+
+plotting_NEU <- rbind(
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_NEU", p_val_col = "p_FDR_NEU"), # extract once the not corrected values
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_corrected_NEU", p_val_col = "p_FDR_corrected_NEU") # and once the corrected values
+)
+# assign whether or not the data was corrected for CT proportion (easier for plotting)
+plotting_NEU$Correction <- c(rep("Uncorrected", 16), rep("Corrected", 16))
+plotting_NEU$RMSE <- rep(colMeans(rmse_mat), 2)
+
+
+p11 <- plot_with_ribbon(
+  plotting_NEU, x = "RMSE", 
+  y = "median.OR",
+  group = "Correction",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "NEU",
+  x_label = "mean RMSE",
+  y_label = "Odds Ratio",
+  y_u_lim = OR_max)
+
+p21 <- plot_with_ribbon(
+  plotting_NEU, x = "RMSE", 
+  y = "median.p",
+  group = "Correction",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "NEU",
+  x_label = "mean RMSE",
+  y_label = "P-value")
+
+plotting_MG <- rbind(
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_MG", p_val_col = "p_FDR_MG"), # extract once the not corrected values
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_corrected_MG", p_val_col = "p_FDR_corrected_MG") # and once the corrected values
+)
+# assign whether or not the data was corrected for CT proportion (easier for plotting)
+plotting_MG$Correction <- c(rep("Uncorrected", 16), rep("Corrected", 16))
+plotting_MG$RMSE <- rep(colMeans(rmse_mat), 2)
+
+
+p12 <- plot_with_ribbon(
+  plotting_MG, x = "RMSE", 
+  y = "median.OR",
+  group = "Correction",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "MG",
+  x_label = "mean RMSE",
+  y_label = "Odds Ratio",
+  y_u_lim = OR_max)
+
+p22 <- plot_with_ribbon(
+  plotting_MG, x = "RMSE", 
+  y = "median.p",
+  group = "Correction",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "MG",
+  x_label = "mean RMSE",
+  y_label = "P-value")
+
+plotting_OLIG <- rbind(
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_OLIG", p_val_col = "p_FDR_OLIG"), # extract once the not corrected values
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_corrected_OLIG", p_val_col = "p_FDR_corrected_OLIG") # and once the corrected values
+)
+# assign whether or not the data was corrected for CT proportion (easier for plotting)
+plotting_OLIG$Correction <- c(rep("Uncorrected", 16), rep("Corrected", 16))
+plotting_OLIG$RMSE <- rep(colMeans(rmse_mat), 2)
+
+
+p13 <- plot_with_ribbon(
+  plotting_OLIG, x = "RMSE", 
+  y = "median.OR",
+  group = "Correction",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "OLIG",
+  x_label = "mean RMSE",
+  y_label = "Odds Ratio",
+  y_u_lim = 46)
+
+p23 <- plot_with_ribbon(
+  plotting_OLIG, x = "RMSE", 
+  y = "median.p",
+  group = "Correction",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "OLIG",
+  x_label = "mean RMSE",
+  y_label = "P-value")
+
+plotting_AST <- rbind(
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_AST", p_val_col = "p_FDR_AST"), # extract once the not corrected values
+  extract_sim_results(data = results_df, group = "noise", OR_col = "OR_corrected_AST", p_val_col = "p_FDR_corrected_AST") # and once the corrected values
+)
+# assign whether or not the data was corrected for CT proportion (easier for plotting)
+plotting_AST$Correction <- c(rep("Uncorrected", 16), rep("Corrected", 16))
+plotting_AST$RMSE <- rep(colMeans(rmse_mat), 2)
+
+
+p14 <- plot_with_ribbon(
+  plotting_AST, x = "RMSE", 
+  y = "median.OR",
+  group = "Correction",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "AST",
+  x_label = "mean RMSE",
+  y_label = "Odds Ratio",
+  y_u_lim = OR_max)
+
+p24 <- plot_with_ribbon(
+  plotting_AST, x = "RMSE", 
+  y = "median.p",
+  group = "Correction",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "AST",
+  x_label = "mean RMSE",
+  y_label = "P-value")
+
+
+
+# combine all the plots into a larger plot, remove titles where not needed
+combined <- (((p11 + labs(x = NULL)) / (p21 + labs(title = NULL))) | 
+               ((p12 + labs(y = NULL, x = NULL)) / (p22 + labs(title = NULL, y = NULL))) | 
+               ((p13 + labs(y = NULL, x = NULL)) / (p23 + labs(title = NULL, y = NULL))) | 
+               ((p14 + labs(y = NULL, x = NULL)) / (p24 + labs(title = NULL, y = NULL)))) +
+  plot_layout(guides = "collect") & theme(legend.position = "right") # moves the legend to the right
+# save the figure
+
+ggsave("Figures/CT_sim_lvl2.svg", device = "svg", width = 160, height = 90, units = "mm")
+ggsave("Figures/S5.svg", device = "svg", width = 160, height = 90, units = "mm")

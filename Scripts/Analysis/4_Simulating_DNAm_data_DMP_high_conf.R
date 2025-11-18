@@ -1,4 +1,5 @@
-source("Scripts/Functions.R")
+source("Scripts/Functions/Functions.R")
+source("Scripts/Functions/plotting_functions.R")
 
 # load required packages
 check_and_load_libraries(c(
@@ -16,10 +17,10 @@ check_and_load_libraries(c(
 ))
 
 # find set sizes of real data
-set_sizes <- c(23746, 19143, 2636, 3001) # set sizes of high-specificity sets
+set_sizes <- c(24646, 19008, 2604, 4909) # set sizes of high-specificity sets
 names(set_sizes) <- c("NeuN", "IRF8", "SOX10", "TN")
 
-background_size <- 785614
+background_size <- 792816 # the cpgs of the EPIC array after pre-processing 
 
 # initialize the nr of CpGs and samples that should be simulated
 sample_num <- 250
@@ -35,19 +36,19 @@ all_cpg_num <- background_size * scaling_factor
 
 # find how many CpGs are in a set and how many are not
 cpg_in_set_num <- NeuN_set_size + IRF8_set_size + SOX10_set_size + TN_set_size
-cpg_out_set_num <- all_cpg_num - (cpg_in_set_num + IRF8_set_size + SOX10_set_size + TN_set_size)
+cpg_out_set_num <- all_cpg_num - (NeuN_set_size + IRF8_set_size + SOX10_set_size + TN_set_size)
 
 #### initialize objects to start the loop and store results
-# initialize DMPs to be added gradually (sd of Gaussian)
-DMP_seq <- c(0, seq(0, 1.5, 0.1))
+# initialize DMPs 
+DMP_seq <- 2^(1:10)
 
 # determine how many iterations will be run per scenario
 n_replicates <- 10
 iter <- length(DMP_seq)
 
 # create objects to store results
-sim_result <- data.frame(matrix(nrow = iter, ncol = 6))
-sim_result_FDR <- data.frame(matrix(nrow = iter, ncol = 6))
+sim_result <- data.frame(matrix(nrow = 1, ncol = 3))
+sim_result_FDR <- data.frame(matrix(nrow = 1, ncol = 3))
 results_df <- data.frame()
 
 # set colnames
@@ -55,11 +56,11 @@ colnames(sim_result) <- c("sig_hits_corrected", "overlap_corrected", "non_overla
 colnames(sim_result_FDR) <- c("sig_hits_corrected", "overlap_corrected", "non_overlap_corrected")
 
 # create objects to store enrichment results
-ORA_res <- data.frame(matrix(nrow = iter, ncol=4))
-colnames(ORA_res) <- c("p_val_corrected", "p_FDR_corrected")
+ORA_res <- data.frame(matrix(nrow = iter, ncol=3))
+colnames(ORA_res) <- c("p_val_corrected", "p_FDR_corrected", "OR_corrected")
 
 #prepare cluster for faster computation
-cl <- makeCluster(24)
+cl <- makeCluster(14)
 clusterEvalQ(cl, library(msm))  # Load msm on each worker
 
 # use a counter for quick indexing of results
@@ -90,6 +91,7 @@ for (DMPs in DMP_seq){
   # initialize object to store results
   replicate_results <- data.frame()
   for (i in 1:n_replicates){
+    print(paste("Computing:", DMPs, "DMPs at replicate number:", i))
     # ASSUMPTION: CpGs within a certain set behave as they did in the set (ct is 0.1-0.9 and non-ct is < 0.1 | > 0.9)
     # select X CpGs from a set of interest (start with NeuN)
     
@@ -120,15 +122,19 @@ for (DMPs in DMP_seq){
     # duplicate first set of samples
     NeuN_set_CpGs[NeuN_seq,(sample_num+1):(sample_num*2)] <-  NeuN_set_CpGs[NeuN_seq,1:sample_num]
     
-    # randomly select CpGs from the set to be differentially methylated 
-    NeuN_dmp_seq <- sample(NeuN_seq, dmp_alloc[["NeuN"]], replace = F)
-    # generate random standard deviations for each selected CpG
-    sd <- runif(length(NeuN_dmp_seq), min = 0, max = 0.1)
-    # make variance heteroskedastic
-    sd_hetero <- sd*abs((abs(0.5-cpg_means[NeuN_dmp_seq])/0.5) -1)
-    # simulate new values for DMPs in the second set of samples
-    NeuN_set_CpGs[NeuN_dmp_seq,(sample_num+1):(sample_num*2)] <- replicate(sample_num, rtnorm(dmp_alloc[["NeuN"]], lower = 0, upper = 1, mean = cpg_means_dmp[NeuN_dmp_seq], sd = sd_hetero))
-    
+    # only run these lines if there are DMPs to be simulated
+    if (dmp_alloc[["NeuN"]] > 0){
+      # randomly select CpGs from the set to be differentially methylated 
+      NeuN_dmp_seq <- sample(NeuN_seq, dmp_alloc[["NeuN"]], replace = F)
+      # generate random standard deviations for each selected CpG
+      sd <- runif(length(NeuN_dmp_seq), min = 0, max = 0.1)
+      # make variance heteroskedastic
+      sd_hetero <- sd*abs((abs(0.5-cpg_means[NeuN_dmp_seq])/0.5) -1)
+      # simulate new values for DMPs in the second set of samples
+      NeuN_set_CpGs[NeuN_dmp_seq,(sample_num+1):(sample_num*2)] <- replicate(sample_num, rtnorm(dmp_alloc[["NeuN"]], lower = 0, upper = 1, mean = cpg_means_dmp[NeuN_dmp_seq], sd = sd_hetero))
+      
+    }
+
     
     # get the remaining CpGs that are not part of the NeuN set
     Neun_other_seq <- full_seq[!full_seq %in% NeuN_seq]  # CpGs that are in another set
@@ -503,7 +509,6 @@ for (DMPs in DMP_seq){
     # extract results and append to the results df
     replicate_row <- cbind(sim_result, sim_result_FDR, ORA_res[1,],ORA_res[2,],ORA_res[3,],ORA_res[4,], DMPs)
     replicate_results <- rbind(replicate_results, replicate_row)
-    print(paste("Computing:", DMPs, "at replicate number:", i))
     
   }
   # summarize results for all iterations
@@ -523,4 +528,137 @@ for (DMPs in DMP_seq){
 # stop the workers
 stopCluster(cl)
 # save the data
-save.image("sim_workspaces/DNAm_sim_DMP_lvl1.RData")
+#save.image("sim_workspaces/DNAm_sim_DMP_lvl1.RData")
+
+# load the results
+load("sim_res_DMP_high.RData")
+
+# assign colnames to resolve issues with duplicate colnames 
+colnames(results_df)[4:6] <- paste0(colnames(results_df)[4:6], "_FDR")
+colnames(results_df)[7:9] <- paste0(colnames(results_df)[7:9], "_NEU")
+colnames(results_df)[10:12] <- paste0(colnames(results_df)[10:12], "_MG")
+colnames(results_df)[13:15] <- paste0(colnames(results_df)[13:15], "_OLIG")
+colnames(results_df)[16:18] <- paste0(colnames(results_df)[16:18], "_AST")
+
+#### plot the results into 4 line plots
+
+# find the highest OR to scale the y-axis with
+OR_max <- max(results_df[, c("OR_corrected_NEU", "OR_corrected_MG", "OR_corrected_OLIG", "OR_corrected_AST")])
+
+plotting_NEU <- extract_sim_results(data = results_df, group = "DMPs", OR_col = "OR_corrected_NEU", p_val_col = "p_FDR_corrected_NEU")
+
+p11 <- plot_with_ribbon(
+  plotting_NEU, x = "DMPs", 
+  y = "median.OR",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "NEU",
+  x_label = "Number of DMPs",
+  y_label = "Odds Ratio",
+  y_u_lim = OR_max)
+
+p21 <- plot_with_ribbon(
+  plotting_NEU, x = "DMPs",
+  y = "median.p",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "NEU",
+  x_label = "Number of DMPs",
+  y_label = "P-value")
+
+
+
+plotting_MG <- extract_sim_results(data = results_df, group = "DMPs", OR_col = "OR_corrected_MG", p_val_col = "p_FDR_corrected_MG")
+
+p12 <- plot_with_ribbon(
+  plotting_MG, 
+  x = "DMPs", 
+  y = "median.OR",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "MG",
+  x_label = "Number of DMPs",
+  y_label = "Odds Ratio",
+  y_u_lim = OR_max)
+
+p22 <- plot_with_ribbon(
+  plotting_MG,
+  x = "DMPs",
+  y = "median.p",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "MG",
+  x_label = "Number of DMPs",
+  y_label = "P-value")
+
+
+plotting_OLIG <- extract_sim_results(
+  data = results_df,
+  group = "DMPs",
+  OR_col = "OR_corrected_OLIG",
+  p_val_col = "p_FDR_corrected_OLIG"
+)
+
+p13 <- plot_with_ribbon(
+  plotting_OLIG,
+  x = "DMPs",
+  y = "median.OR",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "OLIG",
+  x_label = "Number of DMPs",
+  y_label = "Odds Ratio",
+  y_u_lim = 3
+)
+
+p23 <- plot_with_ribbon(
+  plotting_OLIG,
+  x = "DMPs",
+  y = "median.p",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "OLIG",
+  x_label = "Number of DMPs",
+  y_label = "P-value"
+)
+
+
+plotting_AST <- extract_sim_results(
+  data = results_df,
+  group = "DMPs",
+  OR_col = "OR_corrected_AST",
+  p_val_col = "p_FDR_corrected_AST"
+)
+
+p14 <- plot_with_ribbon(
+  plotting_AST,
+  x = "DMPs",
+  y = "median.OR",
+  ymin = "lower_OR",
+  ymax = "upper_OR",
+  title = "AST",
+  x_label = "Number of DMPs",
+  y_label = "Odds Ratio",
+  y_u_lim = 3
+)
+
+p24 <- plot_with_ribbon(
+  plotting_AST,
+  x = "DMPs",
+  y = "median.p",
+  ymin = "lower_P",
+  ymax = "upper_P",
+  title = "AST",
+  x_label = "Number of DMPs",
+  y_label = "P-value"
+)
+
+
+# combine all the plots into a larger plot, remove titles where not needed
+combined <- ((p11 + labs(x = NULL)) / (p21 + labs(title = NULL))) | 
+  ((p12 + labs(y = NULL, x = NULL)) / (p22 + labs(title = NULL, y = NULL))) | 
+  ((p13 + labs(y = NULL, x = NULL)) / (p23 + labs(title = NULL, y = NULL))) | 
+  ((p14 + labs(y = NULL, x = NULL)) / (p24 + labs(title = NULL, y = NULL)))
+
+# save the figure
+ggsave("Figures/DMP_sim_lvl1.svg", device = "svg", width = 160, height = 90, units = "mm")

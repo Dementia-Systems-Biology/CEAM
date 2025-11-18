@@ -1,4 +1,4 @@
-source("Scripts/Functions.R")
+source("Scripts/Functions/Functions.R")
 
 check_and_load_libraries(c(
   "dplyr",
@@ -8,13 +8,14 @@ check_and_load_libraries(c(
   "nlme",
   "lmerTest",
   "performance",
-  "data.table"
+  "data.table",
+  "wateRmelon"
 ))
 
-load("UKBBN2_betas.RData")
+load("Data/UKBBN2_betas.RData")
 
 # prepare the clusters
-cl <- makeCluster(16) # 16 cores is fast enough, but more cores would improve speed further if desired
+cl <- makeCluster(14) # 16 cores is fast enough, but more cores would improve speed further if desired
 
 UKBBN2_pheno$Cell_Type <- gsub(" ", replacement = "", x = UKBBN2_pheno$Cell_Type)
 
@@ -36,7 +37,7 @@ for (i in 1:ncol(pairwise_combinations)){
   
   # subset the data to obtain pheno and betas for only these cell type samples
   pheno_subset <- UKBBN2_pheno[UKBBN2_pheno$Cell_Type == ct1 | UKBBN2_pheno$Cell_Type == ct2, ]
-  beta_subset <- UKBBN2_betas[ ,UKBBN2_pheno$Cell_Type == ct1 | UKBBN2_pheno$Cell_Type == ct2]
+  beta_subset <- UKBBN2_mval[ ,UKBBN2_pheno$Cell_Type == ct1 | UKBBN2_pheno$Cell_Type == ct2]
   
   # ensure that meta data and betas are in the same order
   if (all(rownames(pheno_subset) == colnames(beta_subset))){
@@ -54,7 +55,7 @@ for (i in 1:ncol(pairwise_combinations)){
     f_lme <- function(row, Cell_type, individual, sex, age){ # for each CpG it tests for cell type, and corrects for individual, sex and age
       
       inputdata  = data.frame(row = row, Cell_type = Cell_type, individual = individual, age = age, sex = sex)
-      cpg_lme = nlme::lme(row~ age + sex + Cell_type, random=~1|individual,  control = nlme::lmeControl(opt = "optim"))
+      cpg_lme = nlme::lme(row~ age + sex + Cell_type, random=~1|individual,  control = nlme::lmeControl(opt = "optim", msMaxIter = 100, maxIter = 100))
       
       # extract the relevant results
       sum_cpg = c(summary(cpg_lme)$tTable["Cell_type", ])
@@ -74,7 +75,7 @@ for (i in 1:ncol(pairwise_combinations)){
   }
 }
 
-save.image("Workspaces/pairwise_LME_UKBBN2_results.RData")
+#save.image("Workspaces/pairwise_LME_UKBBN2_results.RData")
 
 
 summary_res <- data.frame(matrix(NA, nrow = ncol(results[[1]]), ncol = (6*4) + (4*3))) # ncol is calculated based on 3 summary statistics per cell type (4*3) and 4 summary statistics for each pairwise LME (6*4)
@@ -123,4 +124,4 @@ for (i in 1:length(results)) {
 # stop the workers
 stopCluster(cl)
 
-save(summary_res, file = "UKBBN2_summary_results.RData")
+save(summary_res, file = "Data/UKBBN2_summary_results.RData")

@@ -1,4 +1,4 @@
-source("Scripts/Functions.R")
+source("Scripts/Functions/Functions.R")
 
 check_and_load_libraries(c(
   "dplyr",
@@ -11,12 +11,18 @@ check_and_load_libraries(c(
   "data.table"
 ))
 
-load("BDR_betas.RData")
+load("Data/BDR_betas.RData")
 
-# prepare the clusters
-cl <- makeCluster(16) # 16 cores is fast enough, but more cores would improve speed further if desired
+load("Data/BDR_FANS/pheno_BDR.Rdata")
 
+BDR_pheno <- left_join(BDR_pheno, pheno, by = join_by("description" == "Basename"))
 BDR_pheno$Cell_Type <- gsub("Trip neg", replacement = "TN", x = BDR_pheno$Cell_Type)
+BDR_pheno[44,"Individual_ID"] <- "BBN002.35107"
+
+rownames(BDR_pheno) <- BDR_pheno$Basename
+# prepare the clusters
+cl <- makeCluster(14) # 16 cores is fast enough, but more cores would improve speed further if desired
+
 
 # extract cell type names
 cell_types <- unique(BDR_pheno$Cell_Type)
@@ -38,7 +44,7 @@ for (i in 1:ncol(pairwise_combinations)){
   
   # subset the data to obtain pheno and betas for only these cell type samples
   pheno_subset <- BDR_pheno[BDR_pheno$Cell_Type == ct1 | BDR_pheno$Cell_Type == ct2, ]
-  beta_subset <- BDR_betas[ ,BDR_pheno$Cell_Type == ct1 | BDR_pheno$Cell_Type == ct2]
+  beta_subset <- BDR_mval[ ,BDR_pheno$Cell_Type == ct1 | BDR_pheno$Cell_Type == ct2]
   
   # ensure that meta data and betas are in the same order
   if (all(rownames(pheno_subset) == colnames(beta_subset))){
@@ -56,7 +62,7 @@ for (i in 1:ncol(pairwise_combinations)){
     f_lme <- function(row, Cell_type, individual, sex, age){  # for each CpG it tests for cell type, and corrects for individual, sex and age
       
       inputdata  = data.frame(row = row, Cell_type = Cell_type, individual = individual, age = age, sex = sex)
-      cpg_lme = nlme::lme(row~ age + sex + Cell_type, random=~1|individual,  control = nlme::lmeControl(opt = "optim"))
+      cpg_lme = nlme::lme(row~ age + sex + Cell_type, random=~1|individual,  control = nlme::lmeControl(opt = "optim", msMaxIter = 100, maxIter = 100))
       
       # extract the relevant results
       sum_cpg = c(summary(cpg_lme)$tTable["Cell_type", ])
@@ -76,7 +82,7 @@ for (i in 1:ncol(pairwise_combinations)){
   }
 }
 
-save.image("Workspaces/pairwise_LME_BDR_results.RData")
+#save.image("Data/pairwise_LME_BDR_results.RData")
 
 
 summary_res <- data.frame(matrix(NA, nrow = ncol(results[[1]]), ncol = (6*4) + (4*3))) # ncol is calculated based on 3 summary statistics per cell type (4*3) and 4 summary statistics for each pairwise LME (6*4)
@@ -125,4 +131,4 @@ for (i in 1:length(results)) {
 # stop the workers
 stopCluster(cl)
 
-save(summary_res, file = "BDR_summary_results.RData")
+save(summary_res, file = "Data/BDR_summary_results.RData")

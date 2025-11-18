@@ -1,18 +1,25 @@
-source("Scripts/Functions.R")
+source("Scripts/Functions/Functions.R")
+source("Scripts/Functions/plotting_functions.R")
+
 # load required packages
 check_and_load_libraries(c(
   "dplyr",
   "pbapply",
-  "parallel"
+  "parallel",
+  "tidyverse",
+  "patchwork",
+  "ggplot2", # if errors in plotting occur try version 3.5.2
+  "ggvenn"
 ))
 # load the betas and summary statistics for both cohorts (ensure they are differently named)
-load("UKBBN2_betas.RData")
-load("UKBBN2_summary_results.RData")
+load("Data/UKBBN2_betas.RData")
+load("Data/UKBBN2_summary_results.RData")
 summary_res_UKBBN2 <- summary_res
+#colnames(summary_res_UKBBN2) <- gsub("\\s+", "", colnames(summary_res_UKBBN2)) # the SOX10 names contained a rogue whitespace
 rm(summary_res)
 
-load("BDR_betas.RData")
-load("BDR_summary_results.RData")
+load("Data/BDR_betas.RData")
+load("Data/BDR_summary_results.RData")
 summary_res_BDR <- summary_res
 rm(summary_res)
 
@@ -186,7 +193,6 @@ NeuN_lvl2_set <- unique(c(NeuN_lvl1_set$NeuN_lvl1,
 TN_lvl2_set <- unique(c(TN_lvl1_set$TN_lvl1,
                         intersect(intersect(TN_UKBBN2_lvl1$multi_cell_cpgs$cpg, TN_BDR_lvl1$multi_cell_cpgs$cpg), shared_cpg_names)))
 
-
 ##### Low-Specificity #####
 generate_lvl_3_sets <- function(df, median_col, FDR_cols, other_median_col, threshold_range, p_val, min_diff){
   #' @param df A data.frame containing summary statistics of methylation data per column
@@ -271,7 +277,7 @@ IRF8_lvl3_set <- unique(c(IRF8_lvl2_set, IRF8_lvl3_set))
 NeuN_lvl3_set <- unique(c(NeuN_lvl2_set, NeuN_lvl3_set))
 TN_lvl3_set <- unique(c(TN_lvl2_set, TN_lvl3_set))
 
-# lvl3 sets should then fullyinclude lvl2 sets
+# lvl3 sets should then fully include lvl2 sets
 length(intersect(SOX10_lvl3_set, SOX10_lvl2_set))/length(SOX10_lvl2_set) == 1
 length(intersect(IRF8_lvl3_set, IRF8_lvl2_set)) / length(IRF8_lvl2_set) == 1
 length(intersect(NeuN_lvl3_set, NeuN_lvl2_set)) / length(NeuN_lvl2_set) == 1
@@ -279,4 +285,117 @@ length(intersect(TN_lvl3_set, TN_lvl2_set)) / length(TN_lvl2_set) == 1
 
 save(SOX10_lvl1_set, IRF8_lvl1_set, NeuN_lvl1_set, TN_lvl1_set, 
      SOX10_lvl2_set, IRF8_lvl2_set, NeuN_lvl2_set, TN_lvl2_set,
-     SOX10_lvl3_set, IRF8_lvl3_set, NeuN_lvl3_set, TN_lvl3_set, file = "CpG_ORA_sets.RData")
+     SOX10_lvl3_set, IRF8_lvl3_set, NeuN_lvl3_set, TN_lvl3_set, file = "Data/CpG_ORA_sets.RData")
+
+#### creating the stacked bar plots
+
+# plotting stacked bar chart for high-specificity
+BDR_lvl1_list <- list(MG = unlist(unique(lapply(IRF8_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg))),
+                      NEU = unlist(unique(lapply(NeuN_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg))),
+                      OLIG = unlist(unique(lapply(SOX10_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg))),
+                      AST = unlist(unique(lapply(TN_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg)))
+)
+
+UKBBN2_lvl1_list <- list(MG = unlist(unique(lapply(IRF8_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg))),
+                         NEU = unlist(unique(lapply(NeuN_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg))),
+                         OLIG = unlist(unique(lapply(SOX10_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg))),
+                         AST = unlist(unique(lapply(TN_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop")], function(df) df$cpg)))
+)                      
+
+cell_types <- intersect(names(BDR_lvl1_list), names(UKBBN2_lvl1_list))
+
+stacked_bar_lvl1 <- make_stacked_bar(BDR_lvl1_list, UKBBN2_lvl1_list, cell_types = cell_types, cohort1_name = "BDR", cohort2_name = "UKBBN2")
+stacked_bar_lvl1[["plot"]]
+
+
+# plotting stacked bar chart for medium-specificity
+BDR_lvl2_list <- list(MG = (unique(lapply(IRF8_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg))),
+                      NEU = (unique(lapply(NeuN_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg))),
+                      OLIG = (unique(lapply(SOX10_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg))),
+                      AST = (unique(lapply(TN_BDR_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg)))
+)
+
+# BDR_lvl2_list <- list(MG = unique(c(IRF8_lvl1_set$IRF8_lvl1,IRF8_BDR_lvl1$multi_cell_cpgs$cpg)),
+#                       NEU = unique(c(NeuN_lvl1_set$NeuN_lvl1, NeuN_BDR_lvl1$multi_cell_cpgs$cpg)),
+#                       OLIG = unique(c(SOX10_lvl1_set$SOX10_lvl1, SOX10_BDR_lvl1$multi_cell_cpgs$cpg)),
+#                       AST = unique(c(TN_lvl1_set$TN_lvl1, TN_BDR_lvl1$multi_cell_cpgs$cpg))
+# )
+# 
+# UKBBN2_lvl2_list <- list(
+#   MG   = unique(c(IRF8_lvl1_set$IRF8_lvl1, IRF8_UKBBN2_lvl1$multi_cell_cpgs$cpg)),
+#   NEU  = unique(c(NeuN_lvl1_set$NeuN_lvl1, NeuN_UKBBN2_lvl1$multi_cell_cpgs$cpg)),
+#   OLIG = unique(c(SOX10_lvl1_set$SOX10_lvl1, SOX10_UKBBN2_lvl1$multi_cell_cpgs$cpg)),
+#   AST  = unique(c(TN_lvl1_set$TN_lvl1, TN_UKBBN2_lvl1$multi_cell_cpgs$cpg))
+# )
+
+
+UKBBN2_lvl2_list <- list(MG = (unique(lapply(IRF8_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg))),
+                         NEU = (unique(lapply(NeuN_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg))),
+                         OLIG = (unique(lapply(SOX10_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg))),
+                         AST = (unique(lapply(TN_UKBBN2_lvl1[c("low_cpgs", "high_cpgs", "flip_flop", "multi_cell_cpgs")], function(df) df$cpg)))
+)
+
+cell_types <- intersect(names(BDR_lvl2_list), names(UKBBN2_lvl2_list))
+
+stacked_bar_lvl2 <- make_stacked_bar(BDR_lvl2_list, UKBBN2_lvl2_list, cell_types = cell_types, cohort1_name = "BDR", cohort2_name = "UKBBN2",
+                                     shared_cpg = shared_cpg_names) # notably we need to supply information which CpGs are found in the same multiple cells across datasets
+stacked_bar_lvl2[["plot"]]
+
+# plotting stacked bar chart for low-specificity
+BDR_lvl3_list <- list(
+  MG = unique(c(IRF8_BDR_lvl3$cpg, IRF8_lvl2_set)),
+  NEU = unique(c(NeuN_BDR_lvl3$cpg, NeuN_lvl2_set)),
+  OLIG = unique(c(SOX10_BDR_lvl3$cpg, SOX10_lvl2_set)),  
+  AST = unique(c(TN_BDR_lvl3$cpg, TN_lvl2_set))
+)
+
+UKBBN2_lvl3_list <- list(
+  MG = unique(c(IRF8_UKBBN2_lvl3$cpg, IRF8_lvl2_set)),  
+  NEU = unique(c(NeuN_UKBBN2_lvl3$cpg, NeuN_lvl2_set)),  
+  OLIG = unique(c(SOX10_UKBBN2_lvl3$cpg, SOX10_lvl2_set)),  
+  AST = unique(c(TN_UKBBN2_lvl3$cpg, TN_lvl2_set))         
+)
+
+cell_types <- intersect(names(BDR_lvl3_list), names(UKBBN2_lvl3_list))
+stacked_bar_lvl3 <- make_stacked_bar(BDR_lvl3_list, UKBBN2_lvl3_list, cell_types = cell_types, cohort1_name = "BDR", cohort2_name = "UKBBN2")
+stacked_bar_lvl3[["plot"]]
+
+##### combine the figures
+(plot <- 
+((stacked_bar_lvl1[["plot"]] + ylim(0, 40000))|
+(stacked_bar_lvl2[["plot"]] + ylim(0, 150000) + theme(axis.title.y = element_blank()))|
+(stacked_bar_lvl3[["plot"]] + ylim(0, 150000) + theme(axis.title.y = element_blank()))) +
+  plot_layout(guides = "collect")+
+  plot_annotation(tag_levels = 'A') &
+  theme(legend.position = "bottom"))
+
+ggsave("Figures/stacked_bar_CpG_sets.svg", plot = plot, device = "svg", width = 250, height = 160, units = "mm")
+ggsave("Figures/Fig3.svg", plot = plot, device = "svg", width = 250, height = 160, units = "mm")
+
+
+##### make venns for the supplement
+
+# calculate the percentage of unique CpGs within each CpG set
+percentages <- c(
+  paste("OLIG ", "(",round(length(setdiff(SOX10_lvl2_set, c(IRF8_lvl2_set, NeuN_lvl2_set, TN_lvl2_set)))/length(SOX10_lvl2_set) *100,1), "%)", sep = ""),
+  paste("MG ", "(",round(length(setdiff(IRF8_lvl2_set, c(SOX10_lvl2_set, NeuN_lvl2_set, TN_lvl2_set)))/length(IRF8_lvl2_set) *100,1), "%)", sep = ""),
+  paste("NEU ", "(",round(length(setdiff(NeuN_lvl2_set, c(SOX10_lvl2_set, IRF8_lvl2_set, TN_lvl2_set)))/length(NeuN_lvl2_set) *100,1), "%)", sep = ""),
+  paste("AST ", "(",round(length(setdiff(TN_lvl2_set, c(SOX10_lvl2_set, NeuN_lvl2_set, IRF8_lvl2_set)))/length(TN_lvl2_set) *100,1), "%)", sep = ""),
+  
+  paste("OLIG ", "(",round(length(setdiff(SOX10_lvl3_set, c(IRF8_lvl3_set, NeuN_lvl3_set, TN_lvl3_set)))/length(SOX10_lvl3_set) *100,1), "%)", sep = ""),
+  paste("MG ", "(",round(length(setdiff(IRF8_lvl3_set, c(SOX10_lvl3_set, NeuN_lvl3_set, TN_lvl3_set)))/length(IRF8_lvl3_set) *100,1), "%)", sep = ""),
+  paste("NEU ", "(",round(length(setdiff(NeuN_lvl3_set, c(SOX10_lvl3_set, IRF8_lvl3_set, TN_lvl3_set)))/length(NeuN_lvl3_set) *100,1), "%)", sep = ""),
+  paste("AST ", "(",round(length(setdiff(TN_lvl3_set, c(SOX10_lvl3_set, NeuN_lvl3_set, IRF8_lvl3_set)))/length(TN_lvl3_set) *100,1), "%)", sep = "")
+)
+
+# create a named list with the cell type and percentage as name to be displayed
+venn2 <- list(OLIG = SOX10_lvl2_set, MG = IRF8_lvl2_set, NEU = NeuN_lvl2_set, AST = TN_lvl2_set)
+names(venn2) <- percentages[1:4]
+ggvenn(venn2, fill_alpha = 0.5, fill_color = c("#D81B60","#004D40", "#FF9307","#1E88E5"), show_percentage = F)
+ggsave("Figures/S3.svg", device = "svg", width = 280, height = 280, units = "mm")
+
+
+venn3 <- list(OLIG = SOX10_lvl3_set, MG = IRF8_lvl3_set, NEU = NeuN_lvl3_set, AST = TN_lvl3_set)
+names(venn3) <- percentages[5:8]
+ggvenn(venn3, fill_alpha = 0.5, fill_color = c("#D81B60","#004D40", "#FF9307","#1E88E5"), show_percentage = F)
+ggsave("Figures/S4.svg", device = "svg", width = 280, height = 280, units = "mm")
